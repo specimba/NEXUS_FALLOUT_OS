@@ -88,10 +88,14 @@ export function useApps(): AppDef[] {
  *
  * For singleton apps: if a window for this appId already exists, it is
  * focused (and restored if minimized) instead of opening a new one.
+ *
+ * Returns the windowId of the opened (or focused) window so callers
+ * can pair it with launch-params (e.g. file-manager opening a file in
+ * the code-editor / notepad).
  */
-export function openApp(id: string): void {
+export function openApp(id: string): string | undefined {
   const app = apps.get(id)
-  if (!app) return
+  if (!app) return undefined
   const ws = useWindowStore.getState()
 
   if (app.singleton) {
@@ -99,13 +103,15 @@ export function openApp(id: string): void {
     if (existing) {
       if (existing.minimized) ws.restoreWindow(existing.id)
       else ws.focusWindow(existing.id)
-      return
+      return existing.id
     }
   }
 
-  ws.openWindow(app.id as AppId, {
+  return ws.openWindow(app.id as AppId, {
     title: app.title ?? app.name,
     w: app.defaultSize.w,
     h: app.defaultSize.h,
+    x: app.defaultSize.x,
+    y: app.defaultSize.y,
   })
 }

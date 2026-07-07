@@ -53,6 +53,7 @@ export type AppId =
   | 'command-center'
   | 'web-agent'
   | 'files'
+  | 'file-manager'
   | 'code-editor'
   | 'notepad'
 
@@ -65,10 +66,13 @@ export type WindowComponentProps = {
 export type AppDef = {
   id: AppId
   name: string
-  icon: string
+  /** Icon — either a lucide-react element or any ReactNode (string emoji). */
+  icon: React.ReactNode
   component: React.ComponentType<WindowComponentProps>
-  defaultSize: { w: number; h: number }
-  minSize?: { w: number; h: number }
+  /** Default window geometry. x/y are optional (omit for cascade positioning). */
+  defaultSize: { x?: number; y?: number; w: number; h: number }
+  /** Minimum window size. x/y are optional. */
+  minSize?: { x?: number; y?: number; w: number; h: number }
   singleton?: boolean
   pinned?: boolean
   category?: AppCategory

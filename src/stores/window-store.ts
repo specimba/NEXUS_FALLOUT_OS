@@ -48,6 +48,7 @@ const DEFAULT_SIZES: Record<AppId, { w: number; h: number }> = {
   'command-center': { w: 880, h: 560 },
   'web-agent': { w: 720, h: 560 },
   files: { w: 720, h: 480 },
+  'file-manager': { w: 760, h: 500 },
   'code-editor': { w: 820, h: 560 },
   notepad: { w: 560, h: 460 },
 }

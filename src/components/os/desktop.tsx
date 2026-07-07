@@ -13,6 +13,12 @@
 
 import '@/apps'
 
+// Side-effect imports so the WAVE-3E apps register themselves on
+// desktop mount. (Cannot append to src/apps/index.ts per brief.)
+import '@/apps/settings'
+import '@/apps/command-center'
+import '@/apps/web-agent'
+
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { useWindowStore } from '@/stores/window-store'

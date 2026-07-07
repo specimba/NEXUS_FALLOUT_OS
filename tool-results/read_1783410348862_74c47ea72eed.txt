@@ -1,0 +1,896 @@
+     1→'use client'
+     2→
+     3→import { useCallback, useEffect, useRef, useState } from 'react'
+     4→import type { TermLine, Theme, ThemeId } from '@/lib/os/types'
+     5→import { getTheme } from '@/lib/os/themes'
+     6→import { createVFS, resetVFS as resetVfsFactory, writeFile, type VFS } from '@/lib/os/vfs'
+     7→import { COMMANDS, COMMAND_NAMES, tokenize, type CommandContext } from '@/lib/os/commands'
+     8→import { player, formatTime, type PlaybackState } from '@/lib/os/music'
+     9→import { playKeyClick, playBeep, setSoundEnabled } from '@/lib/os/sound'
+    10→import AsciiPaint from './AsciiPaint'
+    11→import ChatClient from './ChatClient'
+    12→import LessViewer from './LessViewer'
+    13→
+    14→type Mode = null | 'paint' | 'chat' | 'help'
+    15→
+    16→const BOOT_LINES: { text: string; kind?: TermLine['kind']; delay: number }[] = [
+    17→  { text: 'NEXUS OS v3.1 (Phosphor)  —  booting fallout-shell...', kind: 'dim', delay: 0 },
+    18→  { text: '[boot] mounting virtual fs ............ ok', kind: 'dim', delay: 120 },
+    19→  { text: '[boot] warming phosphor (green) ....... ok', kind: 'dim', delay: 140 },
+    20→  { text: '[boot] brain api :7352 ................ LIVE', kind: 'success', delay: 160 },
+    21→  { text: '[boot] governor kaiju v2.4 ............ mounted', kind: 'dim', delay: 120 },
+    22→  { text: '[boot] vault 5-track memory ........... mounted', kind: 'dim', delay: 120 },
+    23→  { text: '[boot] swarm foreman ................. online', kind: 'dim', delay: 120 },
+    24→  { text: '[boot] model relay (GLM-5.2) ......... quota_aware', kind: 'dim', delay: 120 },
+    25→  { text: '[boot] loading music library (' + 5 + ' tracks) .... ok', kind: 'dim', delay: 100 },
+    26→  { text: '', delay: 60 },
+    27→  { text: '  ███╗   ██╗███████╗██╗  ██╗██╗   ██╗███████╗   type `help` for the manual', kind: 'system', delay: 80 },
+    28→  { text: '  ████╗  ██║██╔════╝╚██╗██╔╝██║   ██║██╔════╝   type `status` for system overview', kind: 'system', delay: 30 },
+    29→  { text: '  ██╔██╗ ██║█████╗   ╚███╔╝ ██║   ██║███████╗   try `agents`, `swarm`, `vault`', kind: 'system', delay: 30 },
+    30→  { text: '  ██║╚██╗██║██╔══╝   ██╔██╗ ██║   ██║╚════██║', kind: 'system', delay: 30 },
+    31→  { text: '  ██║ ╚████║███████╗██╔╝ ██╗╚██████╔╝███████║', kind: 'system', delay: 30 },
+    32→  { text: '  ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝ ╚═════╝ ╚══════╝', kind: 'system', delay: 30 },
+    33→  { text: '', delay: 40 },
+    34→]
+    35→
+    36→function shortCwd(cwd: string): string {
+    37→  if (cwd === '/home/user') return '~'
+    38→  if (cwd.startsWith('/home/user/')) return '~' + cwd.slice('/home/user'.length)
+    39→  return cwd || '/'
+    40→}
+    41→
+    42→function longestCommonPrefix(arr: string[]): string {
+    43→  if (arr.length === 0) return ''
+    44→  let p = arr[0]
+    45→  for (let i = 1; i < arr.length; i++) {
+    46→    while (!arr[i].startsWith(p)) p = p.slice(0, -1)
+    47→    if (!p) break
+    48→  }
+    49→  return p
+    50→}
+    51→
+    52→const PROMPT_USER = 'nexus@os'
+    53→
+    54→export default function Terminal() {
+    55→  // --- persistent prefs ---
+    56→  const [themeId, setThemeId] = useState<ThemeId>(() => {
+    57→    if (typeof window === 'undefined') return 'green'
+    58→    return (localStorage.getItem('cli-os-theme') as ThemeId) || 'green'
+    59→  })
+    60→  const [crtOn, setCrtOn] = useState<boolean>(() => {
+    61→    if (typeof window === 'undefined') return true
+    62→    return localStorage.getItem('cli-os-crt') !== 'off'
+    63→  })
+    64→  const [soundOn, setSoundOn] = useState<boolean>(() => {
+    65→    if (typeof window === 'undefined') return false
+    66→    return localStorage.getItem('cli-os-sound') === 'on'
+    67→  })
+    68→
+    69→  const theme: Theme = getTheme(themeId)
+    70→
+    71→  // --- filesystem ---
+    72→  const vfsRef = useRef<VFS>(null as unknown as VFS)
+    73→  if (!vfsRef.current) vfsRef.current = createVFS()
+    74→
+    75→  // --- terminal state ---
+    76→  const [lines, setLines] = useState<TermLine[]>([])
+    77→  const lineId = useRef(0)
+    78→  const pushLines = useCallback((newLines: { text: string; kind?: TermLine['kind'] }[]) => {
+    79→    setLines((prev) => {
+    80→      const made: TermLine[] = newLines.map((l) => ({ id: lineId.current++, text: l.text, kind: l.kind }))
+    81→      return [...prev, ...made]
+    82→    })
+    83→  }, [])
+    84→
+    85→  const [cwd, _setCwd] = useState('/home/user')
+    86→  const cwdRef = useRef(cwd)
+    87→  const setCwd = (v: string) => {
+    88→    cwdRef.current = v
+    89→    _setCwd(v)
+    90→  }
+    91→
+    92→  // --- input editing ---
+    93→  const [input, _setInput] = useState('')
+    94→  const inputRef = useRef('')
+    95→  const setInput = (v: string) => {
+    96→    inputRef.current = v
+    97→    _setInput(v)
+    98→  }
+    99→  const [cursor, _setCursor] = useState(0)
+   100→  const cursorRef = useRef(0)
+   101→  const setCursor = (v: number) => {
+   102→    cursorRef.current = v
+   103→    _setCursor(v)
+   104→  }
+   105→
+   106→  const [history, _setHistory] = useState<string[]>(() => {
+   107→    if (typeof window === 'undefined') return []
+   108→    try {
+   109→      const raw = window.localStorage.getItem('cli-os-history')
+   110→      return raw ? (JSON.parse(raw) as string[]).slice(-200) : []
+   111→    } catch {
+   112→      return []
+   113→    }
+   114→  })
+   115→  const historyRef = useRef<string[]>(history)
+   116→  useEffect(() => {
+   117→    historyRef.current = history
+   118→    try {
+   119→      window.localStorage.setItem('cli-os-history', JSON.stringify(history.slice(-200)))
+   120→    } catch {
+   121→      /* quota */
+   122→    }
+   123→  }, [history])
+   124→  const [histIdx, _setHistIdx] = useState<number | null>(null)
+   125→  const histIdxRef = useRef<number | null>(null)
+   126→  const setHistIdx = (v: number | null) => {
+   127→    histIdxRef.current = v
+   128→    _setHistIdx(v)
+   129→  }
+   130→  const stashRef = useRef('')
+   131→
+   132→  // --- reverse search (Ctrl+R) ---
+   133→  const [searching, setSearching] = useState(false)
+   134→  const searchingRef = useRef(false)
+   135→  const [searchQuery, _setSearchQuery] = useState('')
+   136→  const searchQueryRef = useRef('')
+   137→  const setSearchQuery = (v: string) => {
+   138→    searchQueryRef.current = v
+   139→    _setSearchQuery(v)
+   140→  }
+   141→  const [searchMatch, setSearchMatch] = useState<string | null>(null)
+   142→  const searchMatchIdxRef = useRef<number | null>(null)
+   143→
+   144→  // --- modes / busy ---
+   145→  const [mode, _setMode] = useState<Mode>(null)
+   146→  const modeRef = useRef<Mode>(null)
+   147→  const setMode = (m: Mode) => {
+   148→    modeRef.current = m
+   149→    _setMode(m)
+   150→  }
+   151→  const [manualText, setManualText] = useState('')
+   152→  const [busy, setBusy] = useState(false)
+   153→  const busyRef = useRef(false)
+   154→  const [live, setLive] = useState(false)
+   155→  const liveRef = useRef(false)
+   156→  const liveStopRef = useRef<null | (() => void)>(null)
+   157→
+   158→  // --- playback ---
+   159→  const [playback, setPlayback] = useState<PlaybackState | null>(null)
+   160→  useEffect(() => {
+   161→    player.on(setPlayback)
+   162→    return () => player.on(() => {})
+   163→  }, [])
+   164→
+   165→  // --- theme fade ---
+   166→  const [fading, setFading] = useState(false)
+   167→
+   168→  // --- sound sync ---
+   169→  useEffect(() => {
+   170→    setSoundEnabled(soundOn)
+   171→    localStorage.setItem('cli-os-sound', soundOn ? 'on' : 'off')
+   172→  }, [soundOn])
+   173→
+   174→  // --- ghost completion ---
+   175→  const [ghost, setGhost] = useState('')
+   176→  const ghostRef = useRef('')
+   177→
+   178→  const computeGhost = useCallback((val: string, cur: number): { ghost: string; candidates: string[] } => {
+   179→    if (cur !== val.length) return { ghost: '', candidates: [] }
+   180→    const endsSpace = /\s$/.test(val) || val === ''
+   181→    const tokens = tokenize(val)
+   182→    let candidates: string[] = []
+   183→    let prefix = ''
+   184→    if (tokens.length === 0 || (tokens.length === 1 && !endsSpace)) {
+   185→      prefix = tokens[0] || ''
+   186→      candidates = COMMAND_NAMES.filter((c) => c.startsWith(prefix))
+   187→    } else {
+   188→      const cmd = tokens[0]
+   189→      const def = COMMANDS[cmd]
+   190→      if (!def?.complete) return { ghost: '', candidates: [] }
+   191→      const args = tokens.slice(1)
+   192→      let argIndex: number
+   193→      if (endsSpace) {
+   194→        argIndex = args.length
+   195→        prefix = ''
+   196→      } else {
+   197→        argIndex = args.length - 1
+   198→        prefix = args[argIndex] || ''
+   199→      }
+   200→      const ctx = buildCtx()
+   201→      candidates = def.complete(args, argIndex, ctx).filter((c) => c.startsWith(prefix))
+   202→    }
+   203→    if (candidates.length === 0) return { ghost: '', candidates: [] }
+   204→    const common = longestCommonPrefix(candidates)
+   205→    let ext = common.slice(prefix.length)
+   206→    if (candidates.length === 1) {
+   207→      // add trailing space for files / commands, keep slash for dirs
+   208→      if (!ext.endsWith('/')) ext += ' '
+   209→    }
+   210→    return { ghost: ext, candidates }
+   211→  }, [])
+   212→
+   213→  useEffect(() => {
+   214→    const { ghost: g } = computeGhost(input, cursor)
+   215→    ghostRef.current = g
+   216→    setGhost(g)
+   217→  }, [input, cursor, computeGhost])
+   218→
+   219→  // --- command context ---
+   220→  const buildCtx = useCallback((): CommandContext => {
+   221→    return {
+   222→      vfs: vfsRef.current,
+   223→      cwd: cwdRef.current,
+   224→      setCwd,
+   225→      setTheme: changeTheme,
+   226→      toggleCrt: () => setCrtOn((v) => !v),
+   227→      setCrt: (v) => setCrtOn(v),
+   228→      isCrtOn: () => crtOnRef.current,
+   229→      setSound: (v) => setSoundOn(v),
+   230→      isSoundOn: () => soundOnRef.current,
+   231→      openMode: (m) => setMode(m),
+   232→      playSong: (s) => player.play(s),
+   233→      stopSong: () => player.stop(),
+   234→      isPlaying: () => player.isPlaying(),
+   235→      nowPlaying: () => player.currentSong(),
+   236→      clear: () => setLines([]),
+   237→      history: () => historyRef.current,
+   238→      resetVfs: () => {
+   239→        vfsRef.current = resetVfsFactory()
+   240→        setCwd('/home/user')
+   241→      },
+   242→      pushLine: (line) => {
+   243→        pushLines([line])
+   244→        stickRef.current = true
+   245→      },
+   246→      registerStop: (fn) => {
+   247→        liveStopRef.current = fn
+   248→      },
+   249→    }
+   250→  }, [pushLines])
+   251→
+   252→  // refs mirroring prefs for ctx closures
+   253→  const crtOnRef = useRef(crtOn)
+   254→  useEffect(() => {
+   255→    crtOnRef.current = crtOn
+   256→    localStorage.setItem('cli-os-crt', crtOn ? 'on' : 'off')
+   257→  }, [crtOn])
+   258→  const soundOnRef = useRef(soundOn)
+   259→  useEffect(() => {
+   260→    soundOnRef.current = soundOn
+   261→  }, [soundOn])
+   262→
+   263→  function changeTheme(id: ThemeId) {
+   264→    if (id === themeIdRef.current) return
+   265→    setFading(true)
+   266→    window.setTimeout(() => {
+   267→      setThemeId(id)
+   268→      localStorage.setItem('cli-os-theme', id)
+   269→    }, 100)
+   270→    window.setTimeout(() => setFading(false), 200)
+   271→  }
+   272→  const themeIdRef = useRef(themeId)
+   273→  useEffect(() => {
+   274→    themeIdRef.current = themeId
+   275→  }, [themeId])
+   276→
+   277→  // --- scroll handling ---
+   278→  const scrollRef = useRef<HTMLDivElement>(null)
+   279→  const stickRef = useRef(true)
+   280→  const onScroll = () => {
+   281→    const el = scrollRef.current
+   282→    if (!el) return
+   283→    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+   284→  }
+   285→  useEffect(() => {
+   286→    if (stickRef.current && scrollRef.current) {
+   287→      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+   288→    }
+   289→  }, [lines, playback])
+   290→
+   291→  // --- boot sequence ---
+   292→  const bootedRef = useRef(false)
+   293→  useEffect(() => {
+   294→    if (bootedRef.current) return
+   295→    bootedRef.current = true
+   296→    let acc = 0
+   297→    for (const l of BOOT_LINES) {
+   298→      acc += l.delay
+   299→      window.setTimeout(() => pushLines([{ text: l.text, kind: l.kind }]), acc)
+   300→    }
+   301→  }, [pushLines])
+   302→
+   303→  // --- saveFile for modes ---
+   304→  const saveFile = useCallback((filename: string, content: string): string => {
+   305→    const res = writeFile(vfsRef.current, filename, cwdRef.current, content)
+   306→    return res.ok ? res.path : filename
+   307→  }, [])
+   308→
+   309→  // --- command execution ---
+   310→  const execute = useCallback(
+   311→    async (raw: string) => {
+   312→      const trimmed = raw.trim()
+   313→      // echo
+   314→      pushLines([{ text: `${PROMPT_USER}:${shortCwd(cwdRef.current)}$ ${raw}`, kind: 'input' }])
+   315→      if (!trimmed) return
+   316→      // history
+   317→      _setHistory((h) => {
+   318→        const nh = [...h, raw]
+   319→        historyRef.current = nh
+   320→        return nh
+   321→      })
+   322→      setHistIdx(null)
+   323→      const tokens = tokenize(trimmed)
+   324→      const name = tokens[0]
+   325→      const args = tokens.slice(1)
+   326→      const def = COMMANDS[name]
+   327→      if (!def) {
+   328→        pushLines([{ text: `sh: ${name}: command not found — type 'help'`, kind: 'error' }])
+   329→        playBeep(180, 0.1, 0.08)
+   330→        return
+   331→      }
+   332→      const ctx = buildCtx()
+   333→      try {
+   334→        setBusy(true)
+   335→        busyRef.current = true
+   336→        liveStopRef.current = null
+   337→        const res = await def.run(args, ctx)
+   338→        if (res.openManual) {
+   339→          setManualText(res.openManual)
+   340→          setMode('help')
+   341→        }
+   342→        if (res.lines.length) pushLines(res.lines)
+   343→        if (res.live) {
+   344→          // command runs in the background pushing lines; stay busy until stop
+   345→          liveRef.current = true
+   346→          setLive(true)
+   347→        } else {
+   348→          liveStopRef.current = null
+   349→        }
+   350→      } catch (e) {
+   351→        pushLines([{ text: `sh: ${name}: ${(e as Error).message}`, kind: 'error' }])
+   352→        playBeep(180, 0.1, 0.08)
+   353→      } finally {
+   354→        if (!liveRef.current) {
+   355→          setBusy(false)
+   356→          busyRef.current = false
+   357→        }
+   358→      }
+   359→    },
+   360→    [buildCtx, pushLines]
+   361→  )
+   362→
+   363→  // --- stop the current live command (q / Ctrl+C while live) ---
+   364→  const stopLive = useCallback(() => {
+   365→    const fn = liveStopRef.current
+   366→    liveStopRef.current = null
+   367→    if (fn) {
+   368→      try {
+   369→        fn()
+   370→      } catch {
+   371→        /* ignore */
+   372→      }
+   373→    }
+   374→    liveRef.current = false
+   375→    setLive(false)
+   376→    setBusy(false)
+   377→    busyRef.current = false
+   378→  }, [])
+   379→
+   380→  // --- key handling (shell only) ---
+   381→  useEffect(() => {
+   382→    function onKey(e: KeyboardEvent) {
+   383→      if (modeRef.current !== null) return
+   384→      const key = e.key
+   385→
+   386→      // Ctrl+R — reverse history search
+   387→      if (e.ctrlKey && (key === 'r' || key === 'R')) {
+   388→        e.preventDefault()
+   389→        if (!searchingRef.current) {
+   390→          searchingRef.current = true
+   391→          setSearching(true)
+   392→          stashRef.current = inputRef.current
+   393→          setSearchQuery('')
+   394→          setSearchMatch(null)
+   395→          searchMatchIdxRef.current = null
+   396→        } else {
+   397→          // cycle to the next-older match
+   398→          const q = searchQueryRef.current
+   399→          const h = historyRef.current
+   400→          const start = searchMatchIdxRef.current === null ? h.length : searchMatchIdxRef.current
+   401→          for (let i = start - 1; i >= 0; i--) {
+   402→            if (h[i].toLowerCase().includes(q.toLowerCase())) {
+   403→              searchMatchIdxRef.current = i
+   404→              setSearchMatch(h[i])
+   405→              break
+   406→            }
+   407→          }
+   408→        }
+   409→        return
+   410→      }
+   411→
+   412→      // while in reverse-search mode
+   413→      if (searchingRef.current) {
+   414→        if (key === 'Enter') {
+   415→          e.preventDefault()
+   416→          const match = searchMatch
+   417→          searchingRef.current = false
+   418→          setSearching(false)
+   419→          setSearchQuery('')
+   420→          setSearchMatch(null)
+   421→          searchMatchIdxRef.current = null
+   422→          if (match) {
+   423→            setInput(match)
+   424→            setCursor(match.length)
+   425→            void execute(match)
+   426→            setInput('')
+   427→            setCursor(0)
+   428→            setHistIdx(null)
+   429→          } else {
+   430→            const val = inputRef.current
+   431→            setInput('')
+   432→            setCursor(0)
+   433→            void execute(val)
+   434→          }
+   435→          return
+   436→        }
+   437→        if (key === 'Escape' || (e.ctrlKey && (key === 'g' || key === 'G' || key === 'c' || key === 'C'))) {
+   438→          e.preventDefault()
+   439→          searchingRef.current = false
+   440→          setSearching(false)
+   441→          setSearchQuery('')
+   442→          setSearchMatch(null)
+   443→          searchMatchIdxRef.current = null
+   444→          return
+   445→        }
+   446→        if (key === 'Backspace') {
+   447→          e.preventDefault()
+   448→          const q = searchQueryRef.current.slice(0, -1)
+   449→          setSearchQuery(q)
+   450→          // re-search from newest
+   451→          const h = historyRef.current
+   452→          let found: string | null = null
+   453→          let idx: number | null = null
+   454→          for (let i = h.length - 1; i >= 0; i--) {
+   455→            if (h[i].toLowerCase().includes(q.toLowerCase())) {
+   456→              found = h[i]
+   457→              idx = i
+   458→              break
+   459→            }
+   460→          }
+   461→          setSearchMatch(found)
+   462→          searchMatchIdxRef.current = idx
+   463→          return
+   464→        }
+   465→        if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+   466→          e.preventDefault()
+   467→          const q = searchQueryRef.current + key
+   468→          setSearchQuery(q)
+   469→          const h = historyRef.current
+   470→          let found: string | null = null
+   471→          let idx: number | null = null
+   472→          for (let i = h.length - 1; i >= 0; i--) {
+   473→            if (h[i].toLowerCase().includes(q.toLowerCase())) {
+   474→              found = h[i]
+   475→              idx = i
+   476→              break
+   477→            }
+   478→          }
+   479→          setSearchMatch(found)
+   480→          searchMatchIdxRef.current = idx
+   481→          return
+   482→        }
+   483→        return // ignore other keys in search mode
+   484→      }
+   485→
+   486→      // Ctrl+L clears screen
+   487→      if (e.ctrlKey && (key === 'l' || key === 'L')) {
+   488→        e.preventDefault()
+   489→        setLines([])
+   490→        return
+   491→      }
+   492→      // Ctrl+C: if text is selected, let browser copy. Otherwise cancel.
+   493→      if (e.ctrlKey && (key === 'c' || key === 'C')) {
+   494→        const sel = window.getSelection()
+   495→        if (sel && sel.toString().length > 0) {
+   496→          return // let browser handle copy
+   497→        }
+   498→        e.preventDefault()
+   499→        if (liveRef.current) { stopLive(); return }
+   500→        if (busyRef.current) return
+   501→        pushLines([{ text: `${PROMPT_USER}:${shortCwd(cwdRef.current)}$ ${inputRef.current}^C`, kind: 'input' }])
+   502→        setInput(''); setCursor(0); setHistIdx(null)
+   503→        return
+   504→      }
+   505→      // Ctrl+V / Cmd+V: paste from clipboard
+   506→      if ((e.ctrlKey || e.metaKey) && (key === 'v' || key === 'V')) {
+   507→        e.preventDefault()
+   508→        if (busyRef.current || liveRef.current) return
+   509→        navigator.clipboard?.readText().then((text) => {
+   510→          if (!text) return
+   511→          const paste = text.replace(/\r?\n/g, ' ').replace(/\t/g, '  ')
+   512→          const cur = cursorRef.current
+   513→          const val = inputRef.current
+   514→          const nv = val.slice(0, cur) + paste + val.slice(cur)
+   515→          setInput(nv)
+   516→          setCursor(cur + paste.length)
+   517→          if (soundOnRef.current) playKeyClick()
+   518→        }).catch(() => {})
+   519→        return
+   520→      }
+   521→
+   522→      // q stops a live command (tail/top)
+   523→      if (liveRef.current && (key === 'q' || key === 'Q' || key === 'Escape')) {
+   524→        e.preventDefault()
+   525→        stopLive()
+   526→        return
+   527→      }
+   528→
+   529→      if (busyRef.current) return
+   530→
+   531→      // Tab completion
+   532→      if (key === 'Tab') {
+   533→        e.preventDefault()
+   534→        const cur = cursorRef.current
+   535→        const val = inputRef.current
+   536→        const { ghost: g, candidates } = computeGhost(val, cur)
+   537→        if (g) {
+   538→          const nv = val + g
+   539→          setInput(nv)
+   540→          setCursor(nv.length)
+   541→        } else if (candidates.length > 1) {
+   542→          pushLines([{ text: candidates.join('   '), kind: 'dim' }])
+   543→        } else {
+   544→          playBeep(220, 0.05, 0.05)
+   545→        }
+   546→        return
+   547→      }
+   548→
+   549→      if (key === 'Enter') {
+   550→        e.preventDefault()
+   551→        const val = inputRef.current
+   552→        setInput('')
+   553→        setCursor(0)
+   554→        setHistIdx(null)
+   555→        stashRef.current = ''
+   556→        void execute(val)
+   557→        return
+   558→      }
+   559→
+   560→      if (key === 'Backspace') {
+   561→        e.preventDefault()
+   562→        const cur = cursorRef.current
+   563→        const val = inputRef.current
+   564→        if (cur === 0) return
+   565→        const nv = val.slice(0, cur - 1) + val.slice(cur)
+   566→        setInput(nv)
+   567→        setCursor(cur - 1)
+   568→        if (soundOnRef.current) playKeyClick()
+   569→        return
+   570→      }
+   571→
+   572→      if (key === 'Delete') {
+   573→        e.preventDefault()
+   574→        const cur = cursorRef.current
+   575→        const val = inputRef.current
+   576→        if (cur >= val.length) return
+   577→        const nv = val.slice(0, cur) + val.slice(cur + 1)
+   578→        setInput(nv)
+   579→        return
+   580→      }
+   581→
+   582→      if (key === 'ArrowLeft') {
+   583→        e.preventDefault()
+   584→        setCursor(Math.max(0, cursorRef.current - 1))
+   585→        return
+   586→      }
+   587→      if (key === 'ArrowRight') {
+   588→        e.preventDefault()
+   589→        setCursor(Math.min(inputRef.current.length, cursorRef.current + 1))
+   590→        return
+   591→      }
+   592→      if (key === 'Home') {
+   593→        e.preventDefault()
+   594→        setCursor(0)
+   595→        return
+   596→      }
+   597→      if (key === 'End') {
+   598→        e.preventDefault()
+   599→        setCursor(inputRef.current.length)
+   600→        return
+   601→      }
+   602→
+   603→      if (key === 'ArrowUp') {
+   604→        e.preventDefault()
+   605→        const h = historyRef.current
+   606→        if (h.length === 0) return
+   607→        let idx = histIdxRef.current
+   608→        if (idx === null) {
+   609→          stashRef.current = inputRef.current
+   610→          idx = h.length
+   611→        }
+   612→        if (idx > 0) {
+   613→          idx -= 1
+   614→          setHistIdx(idx)
+   615→          setInput(h[idx])
+   616→          setCursor(h[idx].length)
+   617→        }
+   618→        return
+   619→      }
+   620→      if (key === 'ArrowDown') {
+   621→        e.preventDefault()
+   622→        const h = historyRef.current
+   623→        let idx = histIdxRef.current
+   624→        if (idx === null) return
+   625→        idx += 1
+   626→        if (idx >= h.length) {
+   627→          setHistIdx(null)
+   628→          setInput(stashRef.current)
+   629→          setCursor(stashRef.current.length)
+   630→        } else {
+   631→          setHistIdx(idx)
+   632→          setInput(h[idx])
+   633→          setCursor(h[idx].length)
+   634→        }
+   635→        return
+   636→      }
+   637→
+   638→      // printable
+   639→      if (key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+   640→        e.preventDefault()
+   641→        const cur = cursorRef.current
+   642→        const val = inputRef.current
+   643→        const nv = val.slice(0, cur) + key + val.slice(cur)
+   644→        setInput(nv)
+   645→        setCursor(cur + 1)
+   646→        if (soundOnRef.current) playKeyClick()
+   647→        return
+   648→      }
+   649→    }
+   650→    window.addEventListener('keydown', onKey)
+   651→    return () => window.removeEventListener('keydown', onKey)
+   652→  }, [computeGhost, execute, pushLines, stopLive])
+   653→
+   654→  // --- mode exit handler ---
+   655→  const onModeExit = useCallback(
+   656→    (output?: string[]) => {
+   657→      setMode(null)
+   658→      if (output && output.length) {
+   659→        pushLines(output.map((text) => ({ text, kind: 'dim' as const })))
+   660→      }
+   661→      stickRef.current = true
+   662→    },
+   663→    [pushLines]
+   664→  )
+   665→
+   666→  const promptStr = `${PROMPT_USER}:${shortCwd(cwd)}$`
+   667→
+   668→  const charAtCursor = input[cursor] || ''
+   669→
+   670→  const nowPlaying = playback?.playing && playback.song ? playback.song : null
+   671→
+   672→  const lineColor = (kind?: TermLine['kind']) => {
+   673→    switch (kind) {
+   674→      case 'dim':
+   675→      case 'system':
+   676→        return theme.dim
+   677→      case 'error':
+   678→        return theme.fg
+   679→      case 'success':
+   680→        return theme.fg
+   681→      case 'input':
+   682→        return theme.fg
+   683→      default:
+   684→        return theme.fg
+   685→    }
+   686→  }
+   687→
+   688→  const rootStyle: React.CSSProperties = {
+   689→    position: 'fixed',
+   690→    inset: 0,
+   691→    background: theme.bg,
+   692→    color: theme.fg,
+   693→    fontFamily: 'var(--font-mono), ui-monospace, monospace',
+   694→    fontSize: 15,
+   695→    lineHeight: '20px',
+   696→    overflow: 'hidden',
+   697→    display: 'flex',
+   698→    flexDirection: 'column',
+   699→    userSelect: 'text',
+   700→    WebkitUserSelect: 'text',
+   701→  }
+   702→
+   703→  const glow = { textShadow: `0 0 6px ${theme.glow}` }
+   704→
+   705→  return (
+   706→    <div style={rootStyle}>
+   707→      {/* scrollback */}
+   708→      <div
+   709→        ref={scrollRef}
+   710→        onScroll={onScroll}
+   711→        style={{
+   712→          flex: 1,
+   713→          overflowY: 'auto',
+   714→          padding: '12px 16px 4px',
+   715→          whiteSpace: 'pre-wrap',
+   716→          wordBreak: 'break-word',
+   717→          scrollbarWidth: 'thin',
+   718→        }}
+   719→        className="term-scroll"
+   720→      >
+   721→        {lines.map((l) => (
+   722→          <div
+   723→            key={l.id}
+   724→            style={{
+   725→              color: lineColor(l.kind),
+   726→              ...glow,
+   727→              fontWeight: l.kind === 'system' ? 600 : 400,
+   728→            }}
+   729→          >
+   730→            {l.text || '\u00a0'}
+   731→          </div>
+   732→        ))}
+   733→
+   734→        {/* live prompt line at bottom of scrollback */}
+   735→        {!busy && mode === null && !searching && (
+   736→          <div style={{ display: 'flex', flexWrap: 'wrap', ...glow }}>
+   737→            <span style={{ color: theme.dim }}>{promptStr} </span>
+   738→            <span style={{ color: theme.fg, whiteSpace: 'pre-wrap' }}>
+   739→              {input.slice(0, cursor)}
+   740→              <Cursor char={charAtCursor} theme={theme} />
+   741→              {input.slice(cursor)}
+   742→              {cursor === input.length && ghost ? (
+   743→                <span style={{ color: theme.dim, opacity: 0.6 }}>{ghost}</span>
+   744→              ) : null}
+   745→            </span>
+   746→          </div>
+   747→        )}
+   748→        {/* reverse-search prompt (Ctrl+R) */}
+   749→        {!busy && mode === null && searching && (
+   750→          <div style={{ display: 'flex', flexWrap: 'wrap', ...glow }}>
+   751→            <span style={{ color: theme.dim }}>reverse-i-search ({searchQuery}): </span>
+   752→            <span style={{ color: searchMatch ? theme.fg : theme.dim }}>
+   753→              {searchMatch || '(no match)'}
+   754→            </span>
+   755→          </div>
+   756→        )}
+   757→        {busy && (
+   758→          <div style={{ color: theme.dim, ...glow }}>
+   759→            <span style={{ color: theme.dim }}>{promptStr} </span>
+   760→            <span style={{ color: live ? theme.fg : theme.dim }}>
+   761→              {live ? '● LIVE — press q or Ctrl+C to stop' : 'working'}
+   762→              {!live && <span className="term-spinner" />}
+   763→            </span>
+   764→          </div>
+   765→        )}
+   766→      </div>
+   767→
+   768→      {/* now playing bar */}
+   769→      <div
+   770→        style={{
+   771→          flexShrink: 0,
+   772→          padding: '4px 16px',
+   773→          borderTop: nowPlaying ? `1px solid ${theme.dim}` : 'none',
+   774→          color: theme.dim,
+   775→          minHeight: 24,
+   776→          display: 'flex',
+   777→          alignItems: 'center',
+   778→          gap: 10,
+   779→          ...glow,
+   780→        }}
+   781→      >
+   782→        {nowPlaying ? (
+   783→          <PlayingBar playback={playback!} theme={theme} />
+   784→        ) : (
+   785→          <span style={{ opacity: 0.5 }}>
+   786→            brain 7352 LIVE  ·  GLM-5.2  ·  {crtOn ? 'crt:on' : 'crt:off'}  ·  sound:{soundOn ? 'on' : 'off'}  ·  theme:{themeId}  —  type `help`
+   787→          </span>
+   788→        )}
+   789→      </div>
+   790→
+   791→      {/* CRT overlay */}
+   792→      {crtOn && <CrtOverlay theme={theme} />}
+   793→
+   794→      {/* theme fade overlay */}
+   795→      <div
+   796→        aria-hidden
+   797→        style={{
+   798→          position: 'absolute',
+   799→          inset: 0,
+   800→          background: '#000',
+   801→          opacity: fading ? 1 : 0,
+   802→          transition: 'opacity 100ms linear',
+   803→          pointerEvents: 'none',
+   804→          zIndex: 60,
+   805→        }}
+   806→      />
+   807→
+   808→      {/* mode overlays */}
+   809→      {mode === 'paint' && <AsciiPaint theme={theme} onExit={onModeExit} saveFile={saveFile} />}
+   810→      {mode === 'chat' && <ChatClient theme={theme} onExit={onModeExit} saveFile={saveFile} />}
+   811→      {mode === 'help' && (
+   812→        <LessViewer theme={theme} onExit={() => onModeExit()} text={manualText} title="TERMINAL/OS — USER MANUAL" />
+   813→      )}
+   814→    </div>
+   815→  )
+   816→}
+   817→
+   818→function Cursor({ char, theme }: { char: string; theme: Theme }) {
+   819→  const [on, setOn] = useState(true)
+   820→  useEffect(() => {
+   821→    const id = window.setInterval(() => setOn((v) => !v), 1060)
+   822→    return () => window.clearInterval(id)
+   823→  }, [])
+   824→  return (
+   825→    <span
+   826→      style={
+   827→        on
+   828→          ? { background: theme.fg, color: theme.bg, borderRadius: 0 }
+   829→          : { background: 'transparent', color: theme.fg }
+   830→      }
+   831→    >
+   832→      {char || '\u00a0'}
+   833→    </span>
+   834→  )
+   835→}
+   836→
+   837→function PlayingBar({ playback, theme }: { playback: PlaybackState; theme: Theme }) {
+   838→  const { song, elapsedSec, totalSec } = playback
+   839→  const pct = Math.min(1, Math.max(0, elapsedSec / totalSec))
+   840→  const bars = 16
+   841→  const filled = Math.round(pct * bars)
+   842→  const meter = Array.from({ length: bars })
+   843→    .map((_, i) => (i < filled ? '▮' : '▯'))
+   844→    .join('')
+   845→  return (
+   846→    <span style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%' }}>
+   847→      <span style={{ color: theme.fg }}>♪</span>
+   848→      <span style={{ color: theme.fg }}>
+   849→        {song.title} <span style={{ color: theme.dim }}>— {song.artist}</span>
+   850→      </span>
+   851→      <span style={{ color: theme.dim, fontFamily: 'var(--font-mono), monospace' }}>{meter}</span>
+   852→      <span style={{ color: theme.dim, marginLeft: 'auto' }}>
+   853→        {formatTime(elapsedSec)} / {formatTime(totalSec)}
+   854→      </span>
+   855→    </span>
+   856→  )
+   857→}
+   858→
+   859→function CrtOverlay({ theme }: { theme: Theme }) {
+   860→  return (
+   861→    <div aria-hidden style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 50 }}>
+   862→      {/* scanlines */}
+   863→      <div
+   864→        style={{
+   865→          position: 'absolute',
+   866→          inset: 0,
+   867→          background:
+   868→            'repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0px, rgba(0,0,0,0) 2px, rgba(0,0,0,0.28) 3px, rgba(0,0,0,0.28) 4px)',
+   869→          mixBlendMode: 'multiply',
+   870→        }}
+   871→      />
+   872→      {/* vertical mask + vignette */}
+   873→      <div
+   874→        style={{
+   875→          position: 'absolute',
+   876→          inset: 0,
+   877→          background:
+   878→            'radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%)',
+   879→        }}
+   880→      />
+   881→      {/* slow flicker */}
+   882→      <div
+   883→        className="crt-flicker"
+   884→        style={{
+   885→          position: 'absolute',
+   886→          inset: 0,
+   887→          background: theme.fg,
+   888→          opacity: 0.02,
+   889→        }}
+   890→      />
+   891→      {/* moving scan beam */}
+   892→      <div className="crt-beam" style={{ position: 'absolute', left: 0, right: 0, height: 120 }} />
+   893→    </div>
+   894→  )
+   895→}
+   896→

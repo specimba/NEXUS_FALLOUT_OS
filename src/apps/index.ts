@@ -10,3 +10,12 @@
 // ============================================================
 
 import './registry'
+import './terminal'
+import './ai-chat'
+import './browser'
+import './code-editor'
+import './file-manager'
+import './notepad'
+import './settings'
+import './command-center'
+import './web-agent'
