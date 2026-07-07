@@ -3,120 +3,347 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* ============================================================
+   NEXUS OS — Bio-Pip-Cyberpunk Design System
+   Canonical CSS variables, theme variants, CRT utilities.
+   ============================================================ */
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Phosphor brand colors (exposed to Tailwind as bg-phosphor etc.) */
+  --color-phosphor: var(--phosphor);
+  --color-phosphor-bright: var(--phosphor-bright);
+  --color-phosphor-dim: var(--phosphor-dim);
+  --color-phosphor-deep: var(--phosphor-deep);
+  --color-pip-amber: var(--pip-amber);
+  --color-cyber-magenta: var(--cyber-magenta);
+  --color-cyber-cyan: var(--cyber-cyan);
+
+  --font-display: var(--font-share-tech);
+  --font-mono: var(--font-jetbrains);
+
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: calc(var(--radius) - 1px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 2px);
 }
 
+/* ----------------------------------------------------------------
+   :root  —  Default Green Phosphor theme
+   ---------------------------------------------------------------- */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  /* Phosphor brand palette (CANON.md) */
+  --phosphor: #33ff66;
+  --phosphor-bright: #7dffa6;
+  --phosphor-dim: #1f6b33;
+  --phosphor-deep: #12401f;
+  --phosphor-glow: rgba(51, 255, 102, 0.5);
+
+  --pip-amber: #ffb000;
+  --cyber-magenta: #ff2a6d;
+  --cyber-cyan: #05d9e8;
+
+  --background: #020a02;
+  --bg-deep: #010501;
+  --card: #05140a;
+  --border: #12401f;
+  --radius: 0.125rem;
+
+  /* shadcn token mapping (default = green phosphor) */
+  --foreground: var(--phosphor);
+  --card-foreground: var(--phosphor);
+  --popover: var(--background);
+  --popover-foreground: var(--phosphor);
+  --primary: var(--phosphor);
+  --primary-foreground: #021005;
+  --secondary: var(--phosphor-deep);
+  --secondary-foreground: var(--phosphor-bright);
+  --muted: var(--phosphor-deep);
+  --muted-foreground: var(--phosphor-dim);
+  --accent: var(--phosphor-deep);
+  --accent-foreground: var(--phosphor-bright);
+  --destructive: var(--cyber-magenta);
+  --destructive-foreground: #1a0008;
+  --input: var(--border);
+  --ring: var(--phosphor-dim);
+
+  /* CRT scanline intensity (0–1). Driven by settings store. */
+  --crt-scanline-opacity: 0.18;
+
+  color-scheme: dark;
 }
 
+/* ----------------------------------------------------------------
+   .dark  —  same as :root (NEXUS OS is always-dark)
+   Kept so shadcn `dark:` variants resolve correctly.
+   ---------------------------------------------------------------- */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  color-scheme: dark;
 }
 
+/* ----------------------------------------------------------------
+   Theme variants — swap --phosphor + derived via [data-theme]
+   on <html>. The ThemeApplier component writes these.
+   ---------------------------------------------------------------- */
+[data-theme='green'] {
+  --phosphor: #33ff66;
+  --phosphor-bright: #7dffa6;
+  --phosphor-dim: #1f6b33;
+  --phosphor-deep: #12401f;
+  --phosphor-glow: rgba(51, 255, 102, 0.5);
+  --background: #020a02;
+  --bg-deep: #010501;
+  --card: #05140a;
+  --border: #12401f;
+  --foreground: var(--phosphor);
+  --primary: var(--phosphor);
+  --primary-foreground: #021005;
+}
+
+[data-theme='amber'] {
+  --phosphor: #ffb000;
+  --phosphor-bright: #ffd47a;
+  --phosphor-dim: #6b4a00;
+  --phosphor-deep: #2a1c00;
+  --phosphor-glow: rgba(255, 176, 0, 0.5);
+  --background: #0b0700;
+  --bg-deep: #050300;
+  --card: #14100a;
+  --border: #4a3400;
+  --foreground: var(--phosphor);
+  --primary: var(--phosphor);
+  --primary-foreground: #1a0f00;
+}
+
+[data-theme='cyan'] {
+  --phosphor: #05d9e8;
+  --phosphor-bright: #8af6ff;
+  --phosphor-dim: #1a6b73;
+  --phosphor-deep: #0a2e33;
+  --phosphor-glow: rgba(5, 217, 232, 0.5);
+  --background: #020a0c;
+  --bg-deep: #01050a;
+  --card: #05161a;
+  --border: #0a3a42;
+  --foreground: var(--phosphor);
+  --primary: var(--phosphor);
+  --primary-foreground: #001014;
+}
+
+[data-theme='white'] {
+  --phosphor: #d8d8d8;
+  --phosphor-bright: #f4f4f4;
+  --phosphor-dim: #5a5a5a;
+  --phosphor-deep: #1f1f1f;
+  --phosphor-glow: rgba(216, 216, 216, 0.35);
+  --background: #050505;
+  --bg-deep: #020202;
+  --card: #0d0d0d;
+  --border: #2a2a2a;
+  --foreground: var(--phosphor);
+  --primary: var(--phosphor);
+  --primary-foreground: #000000;
+}
+
+/* ----------------------------------------------------------------
+   Base layer
+   ---------------------------------------------------------------- */
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+  html,
   body {
-    @apply bg-background text-foreground;
+    height: 100%;
+    margin: 0;
+    background: var(--background);
   }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-mono), ui-monospace, monospace;
+  }
+  ::selection {
+    background: var(--phosphor);
+    color: var(--background);
+  }
+}
+
+/* ----------------------------------------------------------------
+   CRT utilities
+   ---------------------------------------------------------------- */
+@layer utilities {
+  /* Scanlines + vignette overlay (always on while CRT enabled) */
+  .crt-scanlines {
+    background-image:
+      repeating-linear-gradient(
+        to bottom,
+        rgba(0, 0, 0, 0) 0px,
+        rgba(0, 0, 0, 0) 2px,
+        rgba(0, 0, 0, var(--crt-scanline-opacity, 0.18)) 3px,
+        rgba(0, 0, 0, var(--crt-scanline-opacity, 0.18)) 4px
+      ),
+      radial-gradient(
+        ellipse at center,
+        rgba(0, 0, 0, 0) 60%,
+        rgba(0, 0, 0, 0.55) 100%
+      );
+  }
+
+  /* Slow phosphor flicker (subtle + full only) */
+  .crt-flicker {
+    animation: crtFlicker 8s steps(1, end) infinite;
+  }
+
+  /* Moving scan beam (full only) */
+  .crt-beam {
+    background: linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.04) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    animation: crtBeam 7s linear infinite;
+  }
+
+  /* Quality display toggles (set by ThemeApplier via data-crt-quality) */
+  .crt-quality-static .crt-flicker,
+  .crt-quality-static .crt-beam {
+    display: none;
+  }
+  .crt-quality-subtle .crt-beam {
+    display: none;
+  }
+  .crt-quality-full .crt-flicker,
+  .crt-quality-full .crt-beam {
+    display: block;
+  }
+
+  /* Phosphor glow helpers */
+  .phosphor-glow {
+    text-shadow:
+      0 0 4px var(--phosphor-glow),
+      0 0 10px var(--phosphor-glow);
+  }
+  .box-glow {
+    box-shadow:
+      0 0 6px var(--phosphor-glow),
+      0 0 18px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Working spinner dots */
+  .term-spinner::after {
+    content: '...';
+    animation: spinnerDots 1.2s steps(4, end) infinite;
+  }
+}
+
+@keyframes crtFlicker {
+  0%,
+  96%,
+  100% {
+    opacity: 0.02;
+  }
+  97% {
+    opacity: 0.05;
+  }
+  98% {
+    opacity: 0.015;
+  }
+  99% {
+    opacity: 0.045;
+  }
+}
+
+@keyframes crtBeam {
+  0% {
+    transform: translateY(-140px);
+  }
+  100% {
+    transform: translateY(110vh);
+  }
+}
+
+@keyframes spinnerDots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75%,
+  100% { content: '...'; }
+}
+
+/* ----------------------------------------------------------------
+   Global CRT disable hook — ThemeApplier toggles .crt-disabled on <html>
+   ---------------------------------------------------------------- */
+html.crt-disabled .crt-scanlines,
+html.crt-disabled .crt-flicker,
+html.crt-disabled .crt-beam {
+  display: none !important;
+}
+
+/* ----------------------------------------------------------------
+   Reduced motion — kill CRT animations entirely
+   ---------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .crt-flicker,
+  .crt-beam {
+    animation: none !important;
+  }
+}
+
+/* ----------------------------------------------------------------
+   Mobile — reduce CRT weight to save battery + GPU
+   ---------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .crt-flicker {
+    animation-duration: 14s;
+  }
+  .crt-beam {
+    animation-duration: 12s;
+    opacity: 0.4;
+  }
+}
+
+/* ----------------------------------------------------------------
+   Custom scrollbar — green-on-black phosphor
+   ---------------------------------------------------------------- */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--phosphor-dim);
+  border-radius: 0;
+  border: 1px solid var(--phosphor-deep);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--phosphor);
+}
+::-webkit-scrollbar-corner {
+  background: var(--bg-deep);
+}
+* {
+  scrollbar-color: var(--phosphor-dim) var(--bg-deep);
+  scrollbar-width: thin;
 }
