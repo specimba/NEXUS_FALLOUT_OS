@@ -132,3 +132,94 @@ Stage Summary:
 - src/stores/agent-runs-store.ts
 - src/lib/os/sound.ts
 - src/lib/os/music.ts
+
+---
+Task ID: WAVE-2
+Agent: full-stack-developer (shell)
+Task: Boot/lock/desktop/window/registry/page flow
+
+Work Log:
+- Read CANON.md (full), WAVE-1 worklog + handoff, all 4 stores
+  (os-store, window-store, settings-store, fs-store), types.ts,
+  globals.css, layout.tsx, crt-overlay.tsx, and the v4 Terminal.tsx
+  reference for the boot-line + CRT aesthetic (adapted visual style,
+  did NOT copy).
+- Confirmed sonner.tsx already exports Toaster correctly (imports
+  `Toaster as Sonner` + `ToasterProps` from `sonner`, themed via
+  next-themes). No changes needed.
+- Wrote src/apps/registry.tsx — 'use client'. Map<string,AppDef> +
+  useSyncExternalStore (subscribe/getSnapshot with cached snapshot
+  array for referential stability). registerApp/getApp/listApps/
+  useApps/openApp. openApp reads AppDef (title/defaultSize/singleton)
+  and delegates to useWindowStore.getState().openWindow(...); singletons
+  focus the existing window. Re-exports AppDef/AppCategory/AppId/
+  WindowComponentProps.
+- Wrote src/apps/index.ts — barrel, `import './registry'` (apps added
+  in WAVE-3).
+- Wrote src/components/os/boot-screen.tsx — phosphor boot. 7 boot lines
+  (NEXUS OS v3.1 / mounting virtual fs / warming phosphor / agent-runs
+  store / sentinel engine / nexus fusion / loading music library),
+  then NEXUS ASCII art, then "boot complete — entering lock screen".
+  Auto-advance ~4.5s; key/click/touch skips. BAKED-IN scanlines
+  (repeating-linear-gradient + radial vignette overlay, pointer-events-
+  none, z-20) so CRT shows from first paint (does NOT rely on
+  CRTOverlay hydrating). var(--phosphor) text, double text-shadow
+  (6px + 12px) via var(--phosphor-glow), radial var(--background)→
+  var(--bg-deep) bg.
+- Wrote src/components/os/lock-screen.tsx — Pip-Boy lock. NEXUS ASCII
+  wordmark, live clock (Share Tech Mono, useSyncExternalStore 1s
+  second-precision, SSR-safe server snapshot=0→null), ACCESS CODE
+  password input + AUTHENTICATE button. Any non-empty code unlocks
+  (setPhase('desktop')). Empty → magenta "ACCESS DENIED" + shake.
+  Hint "TRY 'nexus'". ROBCO Industries footer. BAKED-IN scanlines.
+- Wrote src/components/os/window.tsx — draggable (header pointer
+  events, bounds-checked, can't go above 32px taskbar) + resizable
+  (bottom-right handle, min 280×180). Min/Max/Restore/Close controls.
+  Maximized = full viewport minus taskbar+dock; restore uses prevState.
+  Minimized → null. Click → focusWindow (bumps z). framer-motion
+  scale 0.92→1 spring open/close. Mobile (≤640px) auto-maximize on
+  mount. Focused window = brighter border + phosphor box-glow. All
+  CSS vars.
+- Wrote src/components/os/desktop.tsx — full viewport. Wallpaper from
+  WALLPAPERS[wallpaper].css. Top TASKBAR (NEXUS wordmark→launcher,
+  running-window pills, theme label, CRT toggle, SND toggle, HH:MM
+  clock via useSyncExternalStore minute-precision). Bottom DOCK
+  (centered, pinned + running apps, glow dot for running, click toggles
+  focus/minimize/open). APP LAUNCHER via shadcn CommandDialog (cmdk),
+  Ctrl/Cmd+Space toggles, Esc closes, fuzzy search. Desktop icons
+  (top-left, double-click). Right-click context menu (Open Terminal,
+  Change Wallpaper, Settings, About). Auto-opens Terminal 250ms after
+  mount. All CSS vars. `import '@/apps'` at top so the barrel (and
+  future app self-registrations) load.
+- Rewrote src/app/page.tsx — 'use client'. Reads phase from os-store;
+  boot→<BootScreen/>, lock→<LockScreen/>, desktop→<Desktop/>. Calls
+  rehydrateSettings()+rehydrateFs() on mount.
+- Ran `bun run lint` once → 6 errors + 1 warning on first pass:
+  (a) boot-screen used `useRef(fn).current` during render (react-hooks/
+      refs) → switched to useCallback.
+  (b) lock-screen + desktop called setState synchronously in effect
+      (react-hooks/set-state-in-effect) for the live clock → replaced
+      with useSyncExternalStore (subscribe= setInterval, getSnapshot=
+      Math.floor(Date.now()/precision), getServerSnapshot= () => 0).
+      `now` is now derived during render (no useState/useEffect for
+      the clock).
+  (c) window.tsx had an unused eslint-disable directive → removed,
+      added proper deps array.
+- Re-ran `bun run lint` → exit 0, clean.
+- Verified NO hardcoded color literals: `rg '#' src/apps/
+  src/components/os/{boot-screen,lock-screen,window,desktop}.tsx
+  src/app/page.tsx` → no matches (rgba() literals are used only inside
+  scanline/box-shadow gradient stops, which contain no `#`).
+- Confirmed dev.log shows `✓ Compiled in …` + `GET / 200` after the
+  new files — no compile/runtime errors introduced.
+
+Stage Summary:
+- src/apps/registry.tsx
+- src/apps/index.ts
+- src/components/os/boot-screen.tsx
+- src/components/os/lock-screen.tsx
+- src/components/os/window.tsx
+- src/components/os/desktop.tsx
+- src/app/page.tsx
+- (verified) src/components/ui/sonner.tsx — already correct, unchanged
+- (handoff) agent-ctx/WAVE-2-shell.md

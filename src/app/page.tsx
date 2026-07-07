@@ -1,31 +1,33 @@
 'use client'
 
+// ============================================================
+// NEXUS OS — Phase flow
+//
+// Root client component. Reads `phase` from os-store and renders
+// BootScreen → LockScreen → Desktop. Also triggers rehydration of
+// the persisted stores (settings + fs) on mount.
+// ============================================================
+
+import { useEffect } from 'react'
+import { useOsStore } from '@/stores/os-store'
+import { rehydrateSettings } from '@/stores/settings-store'
+import { rehydrateFs } from '@/stores/fs-store'
+import { BootScreen } from '@/components/os/boot-screen'
+import { LockScreen } from '@/components/os/lock-screen'
+import { Desktop } from '@/components/os/desktop'
+
 export default function Home() {
-  return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      minHeight: '100vh',
-      gap: '2rem',
-      padding: '1rem'
-    }}>
-      <div style={{
-        position: 'relative',
-        width: '6rem',
-        height: '6rem'
-      }}>
-        <img
-          src="/logo.svg"
-          alt="Z.ai Logo"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain'
-          }}
-        />
-      </div>
-    </div>
-  )
+  const phase = useOsStore((s) => s.phase)
+
+  // Rehydrate persisted stores on the client. (ThemeApplier also calls
+  // rehydrateSettings — calling it here too is harmless and keeps the
+  // fs store in sync regardless of which component mounts first.)
+  useEffect(() => {
+    rehydrateSettings()
+    rehydrateFs()
+  }, [])
+
+  if (phase === 'boot') return <BootScreen />
+  if (phase === 'lock') return <LockScreen />
+  return <Desktop />
 }
