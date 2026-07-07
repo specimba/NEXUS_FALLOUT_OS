@@ -227,7 +227,15 @@ function CommandCenterApp(_props: WindowComponentProps) {
   const clearRuns = useAgentRunsStore((s) => s.clearRuns)
 
   useEffect(() => {
-    const sock = io('/?XTransformPort=3003', {
+    // On the dev server (:3000) the Next.js dev runtime does NOT proxy the
+    // XTransformPort query — Caddy (port 81) does. So if we're running on
+    // :3000, connect directly to the mini-service on localhost:3003.
+    // Otherwise (gateway on :81 or production), use the XTransformPort path
+    // so the request flows through Caddy's reverse proxy.
+    const isDevPort =
+      typeof window !== 'undefined' && window.location.port === '3000'
+    const target = isDevPort ? 'http://localhost:3003' : '/?XTransformPort=3003'
+    const sock = io(target, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: Infinity,

@@ -106,6 +106,7 @@ type TreeNodeProps = {
   isExpanded: boolean
   isCurrent: boolean
   isDirty: boolean
+  expandedSet: Set<string>
   onToggle: (id: string) => void
   onSelect: (path: string) => void
   onDelete: (path: string, isDir: boolean) => void
@@ -118,6 +119,7 @@ const TreeNode = memo(function TreeNode({
   isExpanded,
   isCurrent,
   isDirty,
+  expandedSet,
   onToggle,
   onSelect,
   onDelete,
@@ -180,9 +182,10 @@ const TreeNode = memo(function TreeNode({
                   node={c}
                   path={path === '/' ? `/${c.name}` : `${path}/${c.name}`}
                   depth={depth + 1}
-                  isExpanded={false}
+                  isExpanded={expandedSet.has(c.id)}
                   isCurrent={false}
                   isDirty={false}
+                  expandedSet={expandedSet}
                   onToggle={onToggle}
                   onSelect={onSelect}
                   onDelete={onDelete}
@@ -737,6 +740,7 @@ export function CodeEditorApp({ windowId }: WindowComponentProps) {
               isExpanded={expanded.has('root')}
               isCurrent={false}
               isDirty={false}
+              expandedSet={expanded}
               onToggle={handleToggle}
               onSelect={handleSelect}
               onDelete={handleDelete}
