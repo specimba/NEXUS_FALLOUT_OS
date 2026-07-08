@@ -16,6 +16,7 @@
 
 import type { CompletionRequest, ModelOption, ProviderEntry } from '../types'
 import type { Provider } from './registry'
+import { registerProvider } from './registry'
 import { parseSseStream } from './openai-compat'
 
 const ZAI_MODELS: Array<{
@@ -134,3 +135,6 @@ export class ZaiProvider implements Provider {
     yield* parseSseStream(stream)
   }
 }
+
+// Register the zai provider (always available — SDK preinstalled via /etc/.z-ai-config)
+registerProvider(new ZaiProvider())
