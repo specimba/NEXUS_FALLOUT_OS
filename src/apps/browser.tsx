@@ -97,13 +97,21 @@ function injectBaseHref(html: string, url: string): string {
   // Inject a <base> tag so relative resource URLs resolve against the
   // origin of the source page (works for many static HTML pages).
   const baseTag = `<base href="${escapeAttr(url)}">`
+  // Link-click interceptor: catches <a> clicks inside the sandboxed
+  // blob iframe (which has a null origin and can't navigate on its own)
+  // and forwards them to the parent via postMessage. The Browser app
+  // listens for these and re-fetches the target URL.
+  const navScript = `<script>(function(){document.addEventListener('click',function(e){var a=e.target&&e.target.closest?e.target.closest('a'):null;if(a&&a.href&&!a.target){e.preventDefault();window.parent.postMessage({type:'nexus-navigate',url:a.href},'*');}},true);})();</script>`
   if (/<head[^>]*>/i.test(html)) {
     return html.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`)
+      .replace(/<\/body>/i, `${navScript}</body>`)
   }
   if (/<html[^>]*>/i.test(html)) {
-    return html.replace(/<html([^>]*)>/i, `<html$1><head>${baseTag}</head>`)
+    return html
+      .replace(/<html([^>]*)>/i, `<html$1><head>${baseTag}</head>`)
+      .replace(/<\/body>/i, `${navScript}</body>`)
   }
-  return `${baseTag}${html}`
+  return `${baseTag}${html}${navScript}`
 }
 
 function escapeAttr(s: string): string {
@@ -348,6 +356,28 @@ function BrowserApp(_props: WindowComponentProps) {
     },
     [engine, pushHistory]
   )
+
+  // ---- link-click bridge from the sandboxed blob iframe ------------
+  // The blob iframe runs under a null origin so it can't navigate
+  // itself. injectBaseHref() plants a click interceptor that forwards
+  // <a> targets here via postMessage; we re-dispatch through loadUrl
+  // (which re-fetches + re-renders the destination).
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (e: MessageEvent) => {
+      const data = e.data
+      if (!data || typeof data !== 'object') return
+      if (data.type !== 'nexus-navigate') return
+      const url = typeof data.url === 'string' ? data.url : ''
+      if (!url) return
+      // Only react to http(s) navigations — drop blob:, javascript:, etc.
+      if (!/^https?:\/\//i.test(url)) return
+      setUrlInput(url)
+      void loadUrl(url, { forceMode: 'SMART' })
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [loadUrl])
 
   // ---- go button: parses address bar ------------------------------
   const onGo = useCallback(() => {

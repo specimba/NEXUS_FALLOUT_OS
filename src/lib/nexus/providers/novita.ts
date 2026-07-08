@@ -1,11 +1,23 @@
 // ============================================================
 // NEXUS OS — Novita AI provider
+//
+// Account has insufficient balance in this sandbox (403 on every
+// call). Surfaced as unavailable so the picker greys it out.
 // ============================================================
 
 import { OpenAiCompatProvider } from './openai-compat'
 import { registerProvider } from './registry'
 
-export const novitaProvider = new OpenAiCompatProvider({
+class NovitaProvider extends OpenAiCompatProvider {
+  isAvailable(): boolean {
+    return false
+  }
+  unavailableReason(): string | null {
+    return 'Insufficient balance (403). Novita account is out of credit.'
+  }
+}
+
+export const novitaProvider = new NovitaProvider({
   id: 'novita',
   label: 'Novita AI',
   baseUrl: 'https://api.novita.ai/v3/openai',

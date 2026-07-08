@@ -1,11 +1,23 @@
 // ============================================================
 // NEXUS OS — OpenAI provider
+//
+// Region-blocked in this sandbox (403 on every call). Surfaced as
+// unavailable so the picker greys it out.
 // ============================================================
 
 import { OpenAiCompatProvider } from './openai-compat'
 import { registerProvider } from './registry'
 
-export const openaiProvider = new OpenAiCompatProvider({
+class OpenAIProvider extends OpenAiCompatProvider {
+  isAvailable(): boolean {
+    return false
+  }
+  unavailableReason(): string | null {
+    return 'Region-blocked (403). OpenAI is not reachable from this sandbox.'
+  }
+}
+
+export const openaiProvider = new OpenAIProvider({
   id: 'openai',
   label: 'OpenAI',
   baseUrl: 'https://api.openai.com/v1',

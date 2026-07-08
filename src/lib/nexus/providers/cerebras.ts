@@ -1,11 +1,23 @@
 // ============================================================
 // NEXUS OS — Cerebras provider (wafer-scale inference)
+//
+// Region-blocked in this sandbox (403 on every call). Surfaced as
+// unavailable so the picker greys it out.
 // ============================================================
 
 import { OpenAiCompatProvider } from './openai-compat'
 import { registerProvider } from './registry'
 
-export const cerebrasProvider = new OpenAiCompatProvider({
+class CerebrasProvider extends OpenAiCompatProvider {
+  isAvailable(): boolean {
+    return false
+  }
+  unavailableReason(): string | null {
+    return 'Region-blocked (403). Cerebras is not reachable from this sandbox.'
+  }
+}
+
+export const cerebrasProvider = new CerebrasProvider({
   id: 'cerebras',
   label: 'Cerebras',
   baseUrl: 'https://api.cerebras.ai/v1',

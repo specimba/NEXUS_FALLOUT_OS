@@ -1,11 +1,25 @@
 // ============================================================
 // NEXUS OS — Groq provider (LPU inference)
+//
+// Region-blocked in this sandbox (403 on every call). Surfaced as
+// unavailable so the picker greys it out; the underlying config stays
+// intact so users on other infra can re-enable it by deleting the
+// override below.
 // ============================================================
 
 import { OpenAiCompatProvider } from './openai-compat'
 import { registerProvider } from './registry'
 
-export const groqProvider = new OpenAiCompatProvider({
+class GroqProvider extends OpenAiCompatProvider {
+  isAvailable(): boolean {
+    return false
+  }
+  unavailableReason(): string | null {
+    return 'Region-blocked (403). Groq is not reachable from this sandbox.'
+  }
+}
+
+export const groqProvider = new GroqProvider({
   id: 'groq',
   label: 'Groq (LPU)',
   baseUrl: 'https://api.groq.com/openai/v1',

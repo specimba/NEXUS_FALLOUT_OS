@@ -153,12 +153,25 @@ export const useFsStore = create<FsState>()(
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
     }),
     {
-      name: 'nexus:fs:v1',
+      name: 'nexus:fs:v2',
+      version: 2,
       storage: createJSONStorage(() =>
         isBrowser() ? window.localStorage : (undefined as unknown as Storage)
       ),
       skipHydration: true,
       onRehydrateStorage: () => (state) => {
+        // Safety net: if a stale localStorage entry dropped us in a
+        // directory that no longer exists (or in /tmp), snap back to HOME
+        // so `ls` always shows files immediately.
+        if (state?.cwd && state.vfs) {
+          const dirExists = Object.values(state.vfs).some(
+            (n) => n.type === 'dir' && pathOf(state.vfs as FSMap, n.id) === state.cwd
+          )
+          if (!dirExists) {
+            state.cwd = HOME
+            state.version = (state.version ?? 0) + 1
+          }
+        }
         state?.setHasHydrated(true)
       },
       partialize: (s) => ({ vfs: s.vfs, cwd: s.cwd }),

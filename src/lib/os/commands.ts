@@ -940,30 +940,35 @@ function openCmd(args: string[], ctx: CommandContext): CommandResult {
 }
 
 function statusCmd(_args: string[], ctx: CommandContext): CommandResult {
-  const song = MusicPlayerInstance.currentSong()
-  const playing = MusicPlayerInstance.isPlaying()
-  const runs = useAgentRunsStore.getState().runs
-  const active = runs.filter(
-    (r) => r.status === 'running' || r.status === 'pending' || r.status === 'awaiting-approval'
-  )
-  const fsNodeCount = Object.keys(ctx.fs).length
-  const lines: Out[] = [
-    ascii('╔═ NEXUS OS — STATUS ════════════════════════════════╗'),
-    text(`  user: ${ctx.username}        cwd: ${shortCwd(ctx.cwd)}`),
-    text(`  phase: desktop       uptime: ${uptimeStr()}`),
-    text(`  theme: ${ctx.theme}    crt: ${ctx.crt ? 'on' : 'off'}    sound: ${ctx.sound ? 'on' : 'off'}`),
-    text(`  fs nodes: ${fsNodeCount}     apps: ${listApps().length}`),
-    text(`  agent runs: ${runs.length} total, ${active.length} active`),
-    text(`  music: ${playing && song ? `▶ ${song.title} — ${song.artist}` : '(idle)'}`),
-    ascii('╚════════════════════════════════════════════════════╝'),
-  ]
-  if (active.length > 0) {
-    lines.push(dim('  active runs:'))
-    for (const r of active.slice(0, 5)) {
-      lines.push(text(`    ${r.id}  [${r.status}]  ${r.recipe}  —  ${r.task.slice(0, 60)}`))
+  try {
+    const song = MusicPlayerInstance.currentSong()
+    const playing = MusicPlayerInstance.isPlaying()
+    const runs = useAgentRunsStore.getState().runs
+    const active = runs.filter(
+      (r) => r.status === 'running' || r.status === 'pending' || r.status === 'awaiting-approval'
+    )
+    const fsNodeCount = Object.keys(ctx.fs).length
+    const lines: Out[] = [
+      ascii('╔═ NEXUS OS — STATUS ════════════════════════════════╗'),
+      text(`  user: ${ctx.username}        cwd: ${shortCwd(ctx.cwd)}`),
+      text(`  phase: desktop       uptime: ${uptimeStr()}`),
+      text(`  theme: ${ctx.theme}    crt: ${ctx.crt ? 'on' : 'off'}    sound: ${ctx.sound ? 'on' : 'off'}`),
+      text(`  fs nodes: ${fsNodeCount}     apps: ${listApps().length}`),
+      text(`  agent runs: ${runs.length} total, ${active.length} active`),
+      text(`  music: ${playing && song ? `▶ ${song.title} — ${song.artist}` : '(idle)'}`),
+      ascii('╚════════════════════════════════════════════════════╝'),
+    ]
+    if (active.length > 0) {
+      lines.push(dim('  active runs:'))
+      for (const r of active.slice(0, 5)) {
+        lines.push(text(`    ${r.id}  [${r.status}]  ${r.recipe}  —  ${r.task.slice(0, 60)}`))
+      }
     }
+    return { output: lines }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { output: [{ type: 'error', text: `status: ${msg}` }] }
   }
-  return { output: lines }
 }
 
 function nexusCmd(args: string[], _ctx: CommandContext): CommandResult {
@@ -1020,46 +1025,59 @@ function sleep(ms: number): Promise<void> {
 }
 
 function sentinelCmd(args: string[], _ctx: CommandContext): CommandResult {
-  const sub = args[0]
-  const store = useAgentRunsStore.getState()
-  if (!sub || sub === 'list') {
-    const sentinels = store.runs.filter((r) => r.recipe === 'sentinel')
-    if (sentinels.length === 0) return out(dim('(no sentinels — try: sentinel start | sentinel demo)'))
-    const lines: Out[] = [ascii('▸ SENTINELS'), dim('  ────────────────────────────────────')]
-    for (const r of sentinels) {
-      lines.push(text(`  ${r.id}  [${r.status}]  ${r.task}`))
+  try {
+    const sub = args[0]
+    const store = useAgentRunsStore.getState()
+    if (!sub || sub === 'list') {
+      const sentinels = store.runs.filter((r) => r.recipe === 'sentinel')
+      if (sentinels.length === 0) return out(dim('(no sentinels — try: sentinel start | sentinel demo)'))
+      const lines: Out[] = [ascii('▸ SENTINELS'), dim('  ────────────────────────────────────')]
+      for (const r of sentinels) {
+        lines.push(text(`  ${r.id}  [${r.status}]  ${r.task}`))
+      }
+      return { output: lines }
     }
-    return { output: lines }
+    if (sub === 'start') {
+      const id = store.startRun({
+        recipe: 'sentinel',
+        task: 'sentinel monitor',
+        engine: 'sentinel',
+        source: 'terminal',
+        steps: [{ label: 'boot' }, { label: 'watch' }, { label: 'verify' }],
+      })
+      void advanceRun(id)
+      return out(ok(`▶ sentinel started: ${id}`))
+    }
+    if (sub === 'demo') {
+      const id = store.startRun({
+        recipe: 'sentinel',
+        task: 'sentinel demo sweep',
+        engine: 'sentinel',
+        source: 'terminal',
+        steps: [{ label: 'scan' }, { label: 'analyze' }, { label: 'report' }],
+      })
+      void advanceRun(id)
+      return out(
+        ok(`▶ sentinel demo started: ${id}`),
+        dim('  scan ▸ analyze ▸ report — watch the run panel for live progress'),
+        ascii('  ┌─ SENTINEL DEMO ──────────────────────────────────┐'),
+        text('  │  scan    • enumerating surfaces                  │'),
+        text('  │  analyze • cross-referencing signatures          │'),
+        text('  │  report  • emitting findings                     │'),
+        ascii('  └──────────────────────────────────────────────────┘'),
+      )
+    }
+    if (sub === 'stop') {
+      const runId = args[1]
+      if (!runId) return out(err('usage: sentinel stop <run-id>'))
+      store.endRun(runId, 'cancelled')
+      return out(ok(`sentinel: stopped ${runId}`))
+    }
+    return out(err(`sentinel: unknown subcommand '${sub}'. try: start | list | stop | demo`))
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    return { output: [{ type: 'error', text: `sentinel: ${msg}` }] }
   }
-  if (sub === 'start') {
-    const id = store.startRun({
-      recipe: 'sentinel',
-      task: 'sentinel monitor',
-      engine: 'sentinel',
-      source: 'terminal',
-      steps: [{ label: 'boot' }, { label: 'watch' }, { label: 'verify' }],
-    })
-    void advanceRun(id)
-    return out(ok(`▶ sentinel started: ${id}`))
-  }
-  if (sub === 'demo') {
-    const id = store.startRun({
-      recipe: 'sentinel',
-      task: 'sentinel demo sweep',
-      engine: 'sentinel',
-      source: 'terminal',
-      steps: [{ label: 'scan' }, { label: 'analyze' }, { label: 'report' }],
-    })
-    void advanceRun(id)
-    return out(ok(`▶ sentinel demo started: ${id}`))
-  }
-  if (sub === 'stop') {
-    const runId = args[1]
-    if (!runId) return out(err('usage: sentinel stop <run-id>'))
-    store.endRun(runId, 'cancelled')
-    return out(ok(`sentinel: stopped ${runId}`))
-  }
-  return out(err(`sentinel: unknown subcommand '${sub}'. try: start | list | stop | demo`))
 }
 
 async function watchCmd(args: string[], ctx: CommandContext): Promise<CommandResult> {
