@@ -39,10 +39,19 @@ else
   echo "  .env needs manual restore (keys are gitignored)."
 fi
 
-# 5. Start dev server
-echo "[5/5] Starting dev server..."
+# 5. Install dependencies (node_modules is wiped on sandbox reset)
+echo "[5/6] Installing dependencies..."
+if [ ! -d node_modules/socket.io-client ]; then
+  bun install 2>&1 | tail -3
+else
+  echo "  node_modules OK."
+fi
+
+# 6. Start dev server
+echo "[6/6] Starting dev server..."
 pkill -f "next dev" 2>/dev/null || true
 pkill -f "bun run dev" 2>/dev/null || true
+rm -rf .next  # clear stale cache that causes compile hangs
 sleep 2
 nohup setsid bun run dev </dev/null >>/tmp/nexus-dev.log 2>&1 &
 disown
